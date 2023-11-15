@@ -28,7 +28,11 @@ class MLP(nn.Module):
                 универсальной (описание модели вынесено в конфиг, основной код не должен меняться в зависимости от
                 эксперимента), можно использовать getattr(nn, name) и nn.Sequential/nn.ModuleList
         """
-        raise NotImplementedError
+        layers = []
+        for name, params in self.cfg.layers:
+            layer = getattr(nn, name)(**params)
+            layers.append(layer)
+        return nn.Sequential(*layers)
 
     @torch.no_grad()
     def _init_weights(self, m):
@@ -36,7 +40,8 @@ class MLP(nn.Module):
             Инициализация параметров линейный слоев согласно заданному типу self.cfg.init_type.
             # TODO: реализуйте этот метод, можно использовать getattr(nn.init, self.cfg.init_type)
         """
-        raise NotImplementedError
+        if isinstance(m, nn.Linear):
+            getattr(nn.init, self.cfg.init_type)(m.weight)
 
     def forward(self, inputs):
         """
@@ -46,7 +51,10 @@ class MLP(nn.Module):
 
             TODO: реализуйте этот метод
         """
-        raise NotImplementedError
+        x = inputs.view(inputs.size(0), -1)
+        output = self.layers(x)
+
+        return output
 
 
 if __name__ == '__main__':

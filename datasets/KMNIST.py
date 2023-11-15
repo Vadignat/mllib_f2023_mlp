@@ -40,7 +40,14 @@ class KMNIST(Dataset):
             TODO: Реализуйте этот метод, исходное изображение необходимо привести к типу np.float32 и нормализовать
                 по заданным self.mean и self.std
         """
-        raise NotImplementedError
+        image = self.images[idx]
+
+        if self.transforms is not None:
+            image = self.transforms(image)
+
+        label = self.labels[idx]
+        return {"image": image, "label": label}
+
 
     def show_statistics(self):
         """
@@ -48,7 +55,20 @@ class KMNIST(Dataset):
                 же посчитать среднее (mean) и стандартное отклонение (std) по всем изображениям набора данных
                 Результат работы функции вывести в консоль (print())
         """
-        raise NotImplementedError
+        num_samples = len(self)
+
+        class_counts = {class_label: self.labels.count(class_label) for class_label in set(self.labels)}
+
+        all_images = np.array(self.images)
+        mean = np.mean(all_images)
+        std = np.std(all_images)
+
+        print(f"Количество элементов: {num_samples}")
+        print("Количество элементов в каждом классе:")
+        for class_label, count in class_counts.items():
+            print(f"Класс {class_label}: {count} элементов")
+        print(f"Среднее: {mean}")
+        print(f"Стандартное отклонение: {std}")
 
     def _read_dataset(self):
         if not os.path.exists(os.path.join(self.cfg.path, self.cfg.filename)):
