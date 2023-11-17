@@ -63,5 +63,5 @@ if __name__ == '__main__':
     model = MLP(cfg)
 
     # TODO: вывести количество обучаемых параметров нейронной сети
-    nrof_params = None
+    nrof_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f'number of trainable parameters: {nrof_params}')

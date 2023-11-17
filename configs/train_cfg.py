@@ -15,3 +15,6 @@ cfg.model_cfg = model_cfg
 cfg.dataset_cfg = dataset_cfg
 
 cfg.exp_dir = os.path.join(ROOT_DIR, 'mlp_model')
+
+cfg.env_path = os.path.join(ROOT_DIR, '.env')  # Путь до файла .env где будет храниться api_token.
+cfg.project_name = 'linear-regression'

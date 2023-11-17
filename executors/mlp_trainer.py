@@ -20,6 +20,12 @@ class Trainer:
         #  (пример: https://github.com/KamilyaKharisova/mllib_f2023/blob/master/logginig_example.py)
 
         # TODO: залогируйте используемые гиперпараметры в neptune.ai через метод log_hyperparameters
+        self.neptune_logger = Logger(cfg.env_path, cfg.project_name)
+        self.neptune_logger.log_hyperparameters(params={
+        'learning_rate': cfg.lr,
+        'batch_size': cfg.batch_size,
+        'optimizer': cfg.optimizer_name
+    })
 
         self.__prepare_data(self.cfg.dataset_cfg)
         self.__prepare_model(self.cfg.model_cfg)
@@ -39,7 +45,7 @@ class Trainer:
         self.criterion = nn.CrossEntropyLoss()
 
         # TODO: инициализируйте оптимайзер через getattr(torch.optim, self.cfg.optimizer_name)
-        self.optimizer = None
+        self.optimizer = getattr(torch.optim, self.cfg.optimizer_name)(self.model.parameters(), lr=self.cfg.lr)
 
     def save_model(self, filename):
         """
@@ -47,7 +53,8 @@ class Trainer:
             :param filename: str - название файла
             TODO: реализовать сохранение модели по пути os.path.join(self.cfg.exp_dir, f"{filename}.pt")
         """
-        raise NotImplementedError
+        path = os.path.join(self.cfg.exp_dir, f"{filename}.pt")
+        torch.save(self.model.state_dict(), path)
 
     def load_model(self, filename):
         """
@@ -55,7 +62,8 @@ class Trainer:
             :param filename: str - название файла
             TODO: реализовать выгрузку весов модели по пути os.path.join(self.cfg.exp_dir, f"{filename}.pt")
         """
-        raise NotImplementedError
+        path = os.path.join(self.cfg.exp_dir, f"{filename}.pt")
+        self.model.load_state_dict(torch.load(path))
 
     def make_step(self, batch, update_model=True):
         """
@@ -67,7 +75,19 @@ class Trainer:
             :return: значение функции потерь, выход модели
             # TODO: реализуйте инференс модели для данных batch, посчитайте значение целевой функции
         """
-        raise NotImplementedError
+        inputs, labels = batch['image'], batch['label']
+        labels = labels.long()
+
+        logits = self.model(inputs)
+        loss = self.criterion(logits, labels)
+
+        if update_model:
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+        return loss.item(), logits
+
 
     def train_epoch(self, *args, **kwargs):
         """
@@ -78,7 +98,20 @@ class Trainer:
                 залогируйте на каждом шаге значение целевой функции и accuracy на batch
         """
         self.model.train()
-        raise NotImplementedError
+        #total_loss = 0.0
+
+        for batch_idx, batch in enumerate(self.train_dataloader):
+            loss, logits = self.make_step(batch, update_model=True)
+
+            _, predicted_labels = torch.max(logits, 1)
+            accuracy_value = accuracy(predicted_labels, batch['label'])
+            self.neptune_logger.save_param(
+                'train',
+                ['target_function_value', 'accuracy'],
+                [loss, accuracy_value]
+            )
+            #total_loss += loss
+
 
     def evaluate(self, *args, **kwargs):
         """
@@ -90,9 +123,35 @@ class Trainer:
                 залогируйте значения целевой функции и accuracy, постройте confusion_matrix
         """
         self.model.eval()
-        raise NotImplementedError
+        total_loss = 0.0
+        all_predictions = []
+        all_labels = []
 
-    def fit(self, *args, **kwargs):
+        with torch.no_grad():
+            for batch_idx, batch in enumerate(self.test_dataloader):
+                loss, logits = self.make_step(batch, update_model=False)
+
+                _, predicted_labels = torch.max(logits, 1)
+                total_loss += loss.item()
+
+                all_predictions.extend(predicted_labels.tolist())
+                all_labels.extend(batch['label'].tolist())
+
+        #avg_loss = total_loss / len(self.test_dataloader)
+
+        accuracy_value = accuracy(all_predictions, all_labels)
+        self.neptune_logger.save_param(
+            'train/test',
+            ['target_function_value', 'accuracy'],
+            [total_loss, accuracy_value]
+        )
+        #print(f"Average Loss: {avg_loss}, Accuracy: {accuracy_value}")
+
+        conf_matrix = confusion_matrix(all_predictions, all_labels)
+        self.neptune_logger.save_plot('evaluation', 'confusion_matrix', conf_matrix)
+        return accuracy_value
+
+    def fit(self, num_epochs : int):
         """
             Основной цикл обучения модели. Данная функция должна содержать один цикл на заданное количество эпох.
             На каждой эпохе сначала происходит обучение модели на обучающих данных с помощью метода self.train_epoch(),
@@ -101,7 +160,20 @@ class Trainer:
             # TODO: реализуйте основной цикл обучения модели, сохраните веса модели с лучшим значением accuracy на
                 тестовой выборке
         """
-        raise NotImplementedError
+        best_accuracy = 0.0
+        best_epoch = 0
+
+        for epoch in range(num_epochs):
+            print(f"\nEpoch {epoch + 1}/{num_epochs}:")
+
+            self.train_epoch()
+
+            accuracy = self.evaluate()
+
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+                best_epoch = epoch + 1
+                self.save_model(f"best_model_epoch_{best_epoch}")
 
     def overfitting_on_batch(self, max_step=100):
         """
