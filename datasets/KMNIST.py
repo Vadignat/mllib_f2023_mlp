@@ -3,8 +3,7 @@ import pickle
 import gzip
 import numpy as np
 from urllib import request
-
-
+from PIL import Image
 from torch.utils.data import Dataset
 
 
@@ -41,6 +40,9 @@ class KMNIST(Dataset):
                 по заданным self.mean и self.std
         """
         image = self.images[idx]
+
+        if not isinstance(image, Image.Image):
+            image = Image.fromarray(image)
 
         if self.transforms is not None:
             image = self.transforms(image)

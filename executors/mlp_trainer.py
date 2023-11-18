@@ -44,6 +44,9 @@ class Trainer:
         self.model = MLP(model_cfg)
         self.criterion = nn.CrossEntropyLoss()
 
+        nrof_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        print(f'number of trainable parameters: {nrof_params}')
+
         # TODO: инициализируйте оптимайзер через getattr(torch.optim, self.cfg.optimizer_name)
         self.optimizer = getattr(torch.optim, self.cfg.optimizer_name)(self.model.parameters(), lr=self.cfg.lr)
 
@@ -131,15 +134,15 @@ class Trainer:
             for batch_idx, batch in enumerate(self.test_dataloader):
                 loss, logits = self.make_step(batch, update_model=False)
 
-                _, predicted_labels = torch.max(logits, 1)
-                total_loss += loss.item()
+                _, predicted_labels = torch.max(logits.float(), 1)
+                total_loss += loss
 
                 all_predictions.extend(predicted_labels.tolist())
                 all_labels.extend(batch['label'].tolist())
 
         #avg_loss = total_loss / len(self.test_dataloader)
 
-        accuracy_value = accuracy(all_predictions, all_labels)
+        accuracy_value = accuracy(torch.tensor(all_predictions), torch.tensor(all_labels))
         self.neptune_logger.save_param(
             'train/test',
             ['target_function_value', 'accuracy'],
@@ -170,6 +173,8 @@ class Trainer:
 
             accuracy = self.evaluate()
 
+            print('[{:d}]: accuracy {:.4f}'.format(epoch, accuracy))
+
             if accuracy > best_accuracy:
                 best_accuracy = accuracy
                 best_epoch = epoch + 1
@@ -184,8 +189,9 @@ class Trainer:
         for step in range(max_step):
             loss, output = self.make_step(batch, update_model=True)
             if step % 10 == 0:
-                acc = accuracy(output, batch['label'])
-                print('[{:d}]: loss - {:.4f}, {:.4f}'.format(step, loss, acc))
+                _, predicted_labels = torch.max(output, 1)
+                acc = accuracy(predicted_labels, batch['label'])
+                print('[{:d}]: loss - {:.4f}, {:.4f}'.format(step + 1, loss, acc))
 
 
 if __name__ == '__main__':

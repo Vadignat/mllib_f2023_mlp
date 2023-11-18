@@ -21,7 +21,12 @@ cfg.raw_filename = [
 
 cfg.transforms = EasyDict()
 cfg.transforms.train = [
+    #('Pad', (1, )),
+    #('RandomCrop', (28, 28)),
     ('ToTensor', ()),
     ('Normalize', ([0.5], [1]))
 ]
-cfg.transforms.test = cfg.transforms.train
+cfg.transforms.test = [
+    ('ToTensor', ()),
+    ('Normalize', ([0.5], [1]))
+]
